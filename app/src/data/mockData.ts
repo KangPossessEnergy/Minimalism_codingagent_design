@@ -1,0 +1,172 @@
+import { Category, Todo } from '../types/todo';
+import { formatDateKey } from '../utils/date';
+
+export const INITIAL_CATEGORIES: Category[] = [
+  { id: 'work', name: '工作办公', icon: 'Briefcase', color: '#0284c7', bgColor: 'bg-sky-100 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300' },
+  { id: 'study', name: '学习提升', icon: 'GraduationCap', color: '#8b5cf6', bgColor: 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300' },
+  { id: 'project', name: '重点项目', icon: 'Layers', color: '#f59e0b', bgColor: 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300' },
+  { id: 'life', name: '生活日常', icon: 'Coffee', color: '#10b981', bgColor: 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300' },
+  { id: 'health', name: '健身运动', icon: 'Flame', color: '#ef4444', bgColor: 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300' },
+  { id: 'finance', name: '财务理财', icon: 'CreditCard', color: '#06b6d4', bgColor: 'bg-cyan-100 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300' },
+];
+
+const today = new Date();
+const tomorrow = new Date(today);
+tomorrow.setDate(tomorrow.getDate() + 1);
+
+const dayAfterTomorrow = new Date(today);
+dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 2);
+
+const nextWeek = new Date(today);
+nextWeek.setDate(nextWeek.getDate() + 5);
+
+const yesterday = new Date(today);
+yesterday.setDate(yesterday.getDate() - 1);
+
+export const INITIAL_TODOS: Todo[] = [
+  {
+    id: 'todo-1',
+    title: '完成 Q2 季度产品规划与架构设计方案',
+    description: '整理前端微前端改造路线图，完成技术选型评估并与架构师团队进行可行性评审会。',
+    completed: false,
+    status: 'in_progress',
+    priority: 'urgent',
+    categoryId: 'work',
+    dueDate: formatDateKey(today),
+    dueTime: '17:00',
+    tags: ['架构', '季度规划', '团队协作'],
+    pinned: true,
+    createdAt: new Date(Date.now() - 3600000 * 24).toISOString(),
+    updatedAt: new Date().toISOString(),
+    estimatedPoms: 4,
+    spentPoms: 2,
+    subTasks: [
+      { id: 'sub-1-1', title: '绘制微服务拓扑图与调用链', completed: true },
+      { id: 'sub-1-2', title: '撰写前端状态管理优化草案', completed: true },
+      { id: 'sub-1-3', title: '准备周五架构评审汇报 PPT', completed: false },
+      { id: 'sub-1-4', title: '发送会议纪要与行动清单', completed: false },
+    ],
+  },
+  {
+    id: 'todo-2',
+    title: '深入学习 TypeScript 5.4 新特性与类型体操进阶',
+    description: '重点阅读 NoInfer 实用工具类型、闭包类型收窄、泛型条件类型推断机制。',
+    completed: false,
+    status: 'todo',
+    priority: 'high',
+    categoryId: 'study',
+    dueDate: formatDateKey(tomorrow),
+    dueTime: '21:00',
+    tags: ['TypeScript', '进阶', '读书笔记'],
+    pinned: true,
+    createdAt: new Date(Date.now() - 3600000 * 12).toISOString(),
+    updatedAt: new Date().toISOString(),
+    estimatedPoms: 3,
+    spentPoms: 0,
+    subTasks: [
+      { id: 'sub-2-1', title: '阅读官方 Release Notes', completed: true },
+      { id: 'sub-2-2', title: '编写 5 个典型类型推导测试用例', completed: false },
+      { id: 'sub-2-3', title: '在团队内部分享类型安全最佳实践', completed: false },
+    ],
+  },
+  {
+    id: 'todo-3',
+    title: '准备 TaskFlow 待办产品 2.0 发布前体验回归',
+    description: '针对响应式断点、暗黑模式色彩对比度、键盘快捷键进行全流程 Cross-browser 验证。',
+    completed: false,
+    status: 'in_progress',
+    priority: 'high',
+    categoryId: 'project',
+    dueDate: formatDateKey(today),
+    dueTime: '18:30',
+    tags: ['发布', 'QA测试', 'UI优化'],
+    pinned: false,
+    createdAt: new Date(Date.now() - 3600000 * 48).toISOString(),
+    updatedAt: new Date().toISOString(),
+    estimatedPoms: 5,
+    spentPoms: 3,
+    subTasks: [
+      { id: 'sub-3-1', title: '测试深色模式下的对比度与高光', completed: true },
+      { id: 'sub-3-2', title: '验证快捷键 Command+K 搜索唤起', completed: true },
+      { id: 'sub-3-3', title: '移动端手势滑动操作适配', completed: false },
+    ],
+  },
+  {
+    id: 'todo-4',
+    title: '晨跑 5 公里与核心肌群训练',
+    description: '佩戴运动手表记录心率区间（保持在 Zone 2~3），跑后拉伸 15 分钟。',
+    completed: true,
+    status: 'completed',
+    priority: 'medium',
+    categoryId: 'health',
+    dueDate: formatDateKey(today),
+    dueTime: '08:00',
+    tags: ['健身', '自律', '健康'],
+    pinned: false,
+    createdAt: new Date(Date.now() - 3600000 * 8).toISOString(),
+    updatedAt: new Date().toISOString(),
+    completedAt: new Date().toISOString(),
+    estimatedPoms: 2,
+    spentPoms: 2,
+    subTasks: [
+      { id: 'sub-4-1', title: '慢跑 5KM（配速 5分30秒）', completed: true },
+      { id: 'sub-4-2', title: '平板支撑 3 组各 60 秒', completed: true },
+      { id: 'sub-4-3', title: '泡沫轴筋膜放松与全身拉伸', completed: true },
+    ],
+  },
+  {
+    id: 'todo-5',
+    title: '核对本月家庭账单与投资理财定投计划',
+    description: '汇总信用卡账单、云服务器续费、水电燃气扣款，执行指数基金月度定投。',
+    completed: false,
+    status: 'todo',
+    priority: 'medium',
+    categoryId: 'finance',
+    dueDate: formatDateKey(dayAfterTomorrow),
+    tags: ['理财', '账单', '月度总结'],
+    pinned: false,
+    createdAt: new Date(Date.now() - 3600000 * 72).toISOString(),
+    updatedAt: new Date().toISOString(),
+    estimatedPoms: 1,
+    spentPoms: 0,
+    subTasks: [],
+  },
+  {
+    id: 'todo-6',
+    title: '周末采购生活物资与清洁咖啡机',
+    description: '新鲜咖啡豆（耶加雪菲日晒）、全脂牛奶、全麦燕麦片，深度除垢清洁意式咖啡机水路。',
+    completed: false,
+    status: 'todo',
+    priority: 'low',
+    categoryId: 'life',
+    dueDate: formatDateKey(nextWeek),
+    tags: ['生活', '购物', '咖啡'],
+    pinned: false,
+    createdAt: new Date(Date.now() - 3600000 * 30).toISOString(),
+    updatedAt: new Date().toISOString(),
+    estimatedPoms: 1,
+    spentPoms: 0,
+    subTasks: [
+      { id: 'sub-6-1', title: '采购手冲滤纸与中浅烘豆', completed: false },
+      { id: 'sub-6-2', title: '咖啡机专用除垢粉浸泡冲洗', completed: false },
+    ],
+  },
+  {
+    id: 'todo-7',
+    title: '阅读《设计心理学》第 3-4 章并做笔记',
+    description: '重点思考“示能”、“意符”在现代移动端交互中的实际案例。',
+    completed: true,
+    status: 'completed',
+    priority: 'low',
+    categoryId: 'study',
+    dueDate: formatDateKey(yesterday),
+    tags: ['阅读', '心理学', '设计'],
+    pinned: false,
+    createdAt: new Date(Date.now() - 3600000 * 96).toISOString(),
+    updatedAt: new Date().toISOString(),
+    completedAt: new Date(Date.now() - 3600000 * 20).toISOString(),
+    estimatedPoms: 2,
+    spentPoms: 2,
+    subTasks: [],
+  },
+];

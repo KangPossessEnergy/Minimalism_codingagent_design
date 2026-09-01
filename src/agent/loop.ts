@@ -1,7 +1,7 @@
 import { streamText, type ModelMessage } from 'ai';
 import { ToolRegistry } from '../tools/tool-registry';
 
-const MAX_STEPS = 30;
+const MAX_STEPS = 50;
 
 export async function agentLoop(
   model: any,
