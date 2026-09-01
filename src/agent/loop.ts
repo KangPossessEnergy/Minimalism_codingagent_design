@@ -1,10 +1,11 @@
 import { streamText, type ModelMessage } from 'ai';
+import { ToolRegistry } from '../tools/tool-registry';
 
 const MAX_STEPS = 10;
 
 export async function agentLoop(
   model: any,
-  tools: any,
+  registry: ToolRegistry,
   messages: ModelMessage[],
   system: string,
 ) {
@@ -17,7 +18,7 @@ export async function agentLoop(
     const result = streamText({
       model,
       system,
-      tools,
+      tools: registry.toAISDKFormat(),
       messages,
       // 不设 stopWhen，每次只跑一步
     });
