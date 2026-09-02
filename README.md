@@ -1,190 +1,252 @@
 # Minimalism Coding Agent
 
-一个用 TypeScript 编写的最小化 Coding Agent。它通过模型理解用户需求，并在本地工作区中读取文件、搜索代码、执行命令、修改文件以及启动前端预览服务。
+一个用 TypeScript 编写的轻量级、模块化、极简 Coding Agent（编程智能体）。
 
-仓库同时包含一个由 Agent 操作的 React Todo 示例应用，方便验证“理解需求 → 修改项目 → 构建运行”的完整流程（前端预览需借助 Vite，见下文）。
+本项目以极简代码（Minimalism）完整实现了现代 Coding Agent（类似 Claude Code / Cursor Agent 原型）的核心运行机制：**多轮对话上下文管理**、**基于 ReAct 的多步工具调用循环**、**文件操作与代码搜索**、**本地 Shell 执行**、**上下文结果截断保护**以及**离线 Mock 模型支持**。
 
-## 核心能力
+项目中还包含一个作为“练兵场”的完整 React 19 + Vite Todo 示例应用，用于演练和验证 Agent 自动化“理解需求 → 检索定位 → 修改代码 → 构建验证”的全流程。
 
-- **多轮对话**：持续保存当前会话的消息历史。
-- **工具调用循环**：模型调用工具后，Agent 将工具结果写回上下文，继续执行下一步。
-- **文件操作**：读取、新建、覆盖和精确替换文件，列出目录内容。
-- **代码搜索**：按 glob 模式查找文件，使用正则表达式搜索文件内容。
-- **Shell 执行**：执行本地 shell 命令并返回输出，单次超时时间为 10 秒。
-- **前端预览**：启动 `app/` 目录的简单静态 HTTP 服务器（不编译 TSX，适合纯静态页面）。
-- **Mock 模型**：未配置 API Key 时可直接运行，便于本地演示 Agent 的流式输出和对话历史。
-- **结果截断**：工具返回内容默认限制为 3000 字符，避免过长结果占满上下文。
+---
 
-## 工作方式
+## 🌟 核心特性与设计理念
+
+- 🎯 **极简与可控的 Agent Loop**：基于 Vercel AI SDK 的 `streamText`，单步驱动模型决策，精确监听流式文本、工具调用及执行结果。
+- 🔄 **完备的 ReAct 决策循环**：支持多步自治迭代（最多 50 步），工具执行结果实时回填消息上下文，直至模型完成最终回复。
+- 🛠️ **全套代码编辑与工程工具**：
+  - **精准编辑**：支持唯一上下文匹配的 `edit_file`，避免大文件全量重写导致的截断或缩水。
+  - **高效检索**：内置通配符 `glob` 与正则 `grep`，快速跨文件、跨目录定位代码。
+  - **环境交互**：内置具备超时（10s）与异常捕获保护的 `bash` 执行器。
+  - **预览服务**：内置简易 HTTP 静态预览服务器。
+- 🛡️ **上下文安全防护**：内置 `truncateResult` 机制，自动对超长工具结果进行前后切片保留与中间折叠（默认限 3000 字符），防止上下文窗口溢出。
+- ⚡ **开箱即用（无需 Key 即可体验）**：内置遵循 AI SDK 规范的 `MockModel`，即使没有 API Key 也能本地演示流式打字效果与多轮交互。
+- 🔌 **易扩展的工具注册中心**：采用 `ToolRegistry` 统一管理元数据，易于拓展 MCP (Model Context Protocol) 工具或自定义能力。
+
+---
+
+## 🏗️ 架构设计与执行流程
 
 ```mermaid
 flowchart TD
-    A["用户输入"] --> B["CLI 维护消息历史"]
-    B --> C["模型生成文本或工具调用"]
-    C -->|文本回复| D["输出回复"]
-    C -->|工具调用| E["ToolRegistry 分发工具"]
-    E --> F["读取文件 / 搜索 / Shell / 写文件 / 预览"]
-    F --> G["工具结果回填消息历史"]
-    G --> C
+    User(["👤 用户输入"]) --> CLI["CLI 入口 (src/index.ts)"]
+    CLI --> MsgHistory["维护会话历史 (ModelMessage[])"]
+    MsgHistory --> Loop["Agent Loop (src/agent/loop.ts)"]
+    
+    subgraph Agent_Core ["Agent 核心循环 (Max Steps: 50)"]
+        Loop --> AI_SDK["Vercel AI SDK (streamText)"]
+        AI_SDK --> ModelSelector{{"模型提供方"}}
+        ModelSelector -->|已配置 API_KEY| RealModel["真实模型 (兼容 OpenAI 接口)"]
+        ModelSelector -->|未配置 API_KEY| MockModel["本地 Mock 模型 (src/mock-model.ts)"]
+        
+        RealModel --> Stream["消费 fullStream 实时流"]
+        MockModel --> Stream
+        
+        Stream -->|text-delta| OutputText["流式终端输出"]
+        Stream -->|tool-call| Dispatcher["ToolRegistry 工具分发"]
+        
+        subgraph Tools ["内置工具箱 (src/tools/CommonTool)"]
+            Dispatcher --> FileTools["文件操作: read / write / edit / list"]
+            Dispatcher --> SearchTools["搜索检索: glob / grep"]
+            Dispatcher --> ShellTools["命令执行: bash"]
+            Dispatcher --> PreviewTools["服务预览: start_preview"]
+        end
+        
+        Tools --> Truncate["结果安全截断 (truncateResult)"]
+        Truncate -->|tool-result| AppendMsg["追加工具结果至消息历史"]
+        AppendMsg --> Loop
+    end
+
+    OutputText --> Complete{"模型是否停止调用工具?"}
+    Complete -->|否: 还有工具调用| Loop
+    Complete -->|是 / 达到上限| CLI
 ```
 
-每次用户输入最多执行 50 个 Agent step。当模型在某一步不再调用工具时，循环结束并返回最终文本。
+---
 
-## 项目结构
+## 📁 项目目录结构
 
 ```text
 .
 ├── src/
-│   ├── index.ts                    # CLI 入口、模型初始化和交互循环
-│   ├── mock-model.ts               # 本地 Mock 模型
-│   ├── agent/loop.ts               # 模型与工具的多步执行循环
+│   ├── index.ts                     # CLI 入口：环境加载、模型初始化、对话主循环
+│   ├── mock-model.ts                # 本地离线 Mock 模型实现（支持模拟流式输出）
+│   ├── agent/
+│   │   └── loop.ts                  # Agent 核心单步执行循环与工具结果回填机制
 │   └── tools/
-│       ├── index.ts                # 默认工具集合
-│       ├── tool-registry.ts        # 工具注册与 AI SDK 格式转换
-│       └── CommonTool/
-│           ├── file-tools.ts        # 文件读写、精确编辑、目录列表
-│           ├── search-tools.ts      # glob 和 grep
-│           ├── shell-tools.ts       # bash
-│           └── start_preview-tools.ts
-├── app/                            # React + Vite Todo 示例应用
-├── dist/                           # TypeScript 编译产物
-├── .env.example                    # 模型配置示例
-├── package.json                    # Agent 包配置
-└── pnpm-workspace.yaml             # pnpm workspace 配置
+│       ├── index.ts                 # 工具统一导出与默认工具集装配
+│       ├── tool-registry.ts         # 工具注册表、格式转换及结果截断逻辑
+│       ├── CommonTool/              # 常用内置工具集合
+│       │   ├── file-tools.ts        # read_file / write_file / edit_file / list_directory
+│       │   ├── search-tools.ts      # glob / grep 文件与代码检索
+│       │   ├── shell-tools.ts       # bash 命令执行（10s 超时与错误捕获）
+│       │   └── start_preview-tools.ts # start_preview 静态预览服务器
+│       └── McpTool/                 # [预留] MCP (Model Context Protocol) 扩展目录
+├── app/                             # React 19 + TypeScript + Vite + Tailwind Todo 示例应用
+├── dist/                            # TypeScript 编译输出目录
+├── .env.example                     # 环境变量配置模板
+├── package.json                     # 项目配置与依赖说明
+├── tsconfig.json                    # TypeScript 编译配置
+└── pnpm-workspace.yaml              # pnpm workspace 配置
 ```
 
-## 内置工具
+---
 
-| 工具 | 作用 |
-| --- | --- |
-| `read_file` | 读取指定文件 |
-| `write_file` | 覆盖写入文件 |
-| `edit_file` | 对唯一匹配的 `old_string` 做精确替换 |
-| `list_directory` | 列出目录下的文件和子目录 |
-| `glob` | 按 `*`、`**` 模式搜索文件 |
-| `grep` | 以正则表达式搜索文件内容并返回行号 |
-| `bash` | 执行 shell 命令 |
-| `start_preview` | 启动 `app/` 静态预览服务（纯静态文件，不编译 TSX），默认端口为 `8080` |
+## 🧰 内置工具一览
 
-工具通过 `ToolRegistry` 注册，并自动转换为 Vercel AI SDK 可识别的工具格式。新增工具时，实现 `ToolDefinition` 并加入 `src/tools/index.ts` 即可。
+| 工具名称 | 参数 | 特性与描述 |
+| :--- | :--- | :--- |
+| `read_file` | `path` | 读取指定路径文件内容，支持相对或绝对路径。 |
+| `write_file` | `path`, `content` | 写入文件；若文件不存在则新建，已存在则完整覆盖。 |
+| `edit_file` | `path`, `old_string`, `new_string` | 精确匹配替换。当 `old_string` 出现 0 次或多次时均会拒绝并提示，保证编辑安全。 |
+| `list_directory`| `path?` | 树状列出指定目录下的文件与子目录（标注 `[DIR]` / `[FILE]`）。 |
+| `glob` | `pattern`, `path?` | 快速文件匹配，支持 `*` 和 `**`（如 `src/**/*.ts`），自动忽略 `node_modules` 和 `.git`。 |
+| `grep` | `pattern`, `path?` | 基于正则表达式的全文检索工具，返回匹配文件的相对路径及精准行号。 |
+| `bash` | `command` | 在本地环境执行 Shell 命令，内置 10 秒超时机制，捕获 stdout/stderr。 |
+| `start_preview`| `port?` | 启动 `app/` 目录的本地 HTTP 静态服务器（默认端口 8080）。 |
 
-## 快速开始
+---
 
-### 环境要求
+## 🚀 快速上手
 
-- Node.js
-- pnpm
+### 1. 环境准备
 
-### 安装依赖
+- [Node.js](https://nodejs.org/) (>= 18.0.0)
+- [pnpm](https://pnpm.io/) (>= 8.0.0)
 
 ```bash
+# 克隆仓库并安装依赖
 pnpm install
 ```
 
-### 直接启动
+### 2. 启动 Agent
 
-不配置 API Key 时，Agent 使用本地 Mock 模型：
+#### 模式 A：零配置体验（Mock 模式）
+
+未配置 `.env` 中的 `API_KEY` 时，Agent 会自动启用内置的离线 Mock 模型：
 
 ```bash
 pnpm start
-```
-
-开发时可使用自动重启：
-
-```bash
+# 或者以开发监听模式启动
 pnpm dev
 ```
 
-启动后，在终端输入内容即可对话。注意 Mock 模型只返回固定文案，用于演示流式输出和多轮对话历史，**不会真正调用工具**；体验"读取文件 → 修改代码 → 执行命令"的完整工具调用流程，请先按下一节配置真实模型。
+> 💡 **提示**：Mock 模型主要用于验证 CLI 交互、流式渲染及消息历史结构，不会真正触发工具执行。
 
-输入 `exit` 退出。
+#### 模式 B：接入真实大模型
 
-### 接入真实模型
-
-复制环境变量示例并填写兼容 OpenAI API 的服务配置：
+复制配置文件并填入兼容 OpenAI 接口的配置（如 DeepSeek、Qwen、Gemini、OpenAI 等）：
 
 ```bash
 cp .env.example .env
 ```
 
+编辑 `.env` 文件：
+
 ```dotenv
 PROVIDER=custom
-NAME=your-model-name
-BASE_URL=https://your-openai-compatible-endpoint/v1
-API_KEY=your-api-key
+NAME=qwen-plus                      # 模型名称
+BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1 # API Base URL
+API_KEY=sk-xxxxxxxxxxxxxxxxxxxx     # 你的 API Key
 ```
 
-配置 `API_KEY` 后，启动入口会切换到真实模型；未配置时自动使用 Mock 模型。
+启动 Agent：
 
-接入真实模型后，可以让 Agent 真正操作项目，例如：
+```bash
+pnpm start
+```
+
+---
+
+## 💻 对话实战示例
+
+接入真实大模型后，可以在终端输入各类复杂的工程任务：
 
 ```text
-You: 查看当前项目结构，并告诉我 React 应用的入口文件
-You: 修改 app 左上角的产品名称
+Coding Agent v0.3 (type "exit" to quit)
+
+You: 请帮我查看 app/src/App.tsx 的核心结构，并把左上角的标题改成 "TestSystem"
+--- Step 1 ---
+[调用: read_file({"path":"app/src/App.tsx"})]
+[结果: "...文件内容..."]
+→ 模型还在工作，继续下一步...
+
+--- Step 2 ---
+[调用: edit_file({"path":"app/src/App.tsx","old_string":"Taskflow","new_string":"TestSystem"})]
+[结果: "已替换 app/src/App.tsx 中的内容"]
+→ 模型还在工作，继续下一步...
+
+--- Step 3 ---
+已成功修改 app/src/App.tsx 中的标题为 "TestSystem"。
+
+You: 运行 build 检查前端项目是否能正常编译
+--- Step 1 ---
+[调用: bash({"command":"pnpm --dir app build"})]
+[结果: "vite v6.0.7 building for production... ✓ built in 230ms"]
+→ 模型还在工作，继续下一步...
+
+--- Step 2 ---
+前端应用编译成功，没有发现类型或语法错误！
 ```
 
-## React 示例应用
+---
 
-`app/` 是一个 React + Vite 的 Todo 应用，包含：
+## 📱 示例应用（app/）
 
-- 列表、看板和日历三种视图
-- 任务分类、优先级、标签、搜索和排序
-- 新建、编辑、删除、完成和置顶任务
-- 子任务进度管理
-- 番茄钟专注计时
-- 浅色 / 暗色主题
-- 使用 `localStorage` 保存任务和主题设置
-- 完成任务时的庆祝动画
+项目根目录下的 `app/` 包含一个完整的现代 React Todo 应用：
 
-单独运行前端开发服务器：
+- 🎨 **视图与管理**：支持列表（List）、看板（Board）、日历（Calendar）三种视图。
+- 🔍 **检索与分类**：支持多标签、工作/生活/学习分类、优先级筛选与全文即时检索。
+- ⏱️ **番茄钟专注**：内置 Pomodoro 计时器与倒计时提醒。
+- 🌓 **个性化体验**：支持浅色/暗色主题，操作完成动画，`localStorage` 本地持久化。
+
+运行前端开发服务：
 
 ```bash
 pnpm --dir app dev
 ```
 
-构建前端：
+构建前端产物：
 
 ```bash
 pnpm --dir app build
 ```
 
-注意：Agent 的 `start_preview` 工具只是静态文件服务器，固定服务 `app/` 目录且不编译 TSX，因此**无法直接预览本示例的 React 源码**（浏览器会因无法解析 TSX 而白屏）。预览该应用请使用上面的 Vite 命令；`start_preview` 仅适合 `app/` 下放置纯 HTML/JS 原型的场景。
+---
 
-## 常用命令
+## 🔧 二次开发与扩展
 
-| 命令 | 说明 |
-| --- | --- |
-| `pnpm start` | 启动 Coding Agent |
-| `pnpm dev` | 以 watch 模式启动 Coding Agent |
-| `pnpm build` | 编译 `src/` 到 `dist/` |
-| `pnpm --dir app dev` | 启动 React 开发服务器 |
-| `pnpm --dir app build` | 构建 React 应用 |
-| `pnpm --dir app preview` | 预览前端构建产物 |
+### 添加自定义工具
 
-## 设计特点
+1. 在 `src/tools/CommonTool/` 下创建工具实现文件，定义 `ToolDefinition`：
 
-### 小而清晰的 Agent Loop
+```typescript
+import type { ToolDefinition } from '../tool-registry';
 
-核心逻辑集中在 `src/agent/loop.ts`：每轮只让模型推进一步，手动消费完整流并收集文本、工具调用和工具结果。这使工具执行过程可观察，也便于后续增加日志、权限确认和更复杂的停止条件。
+export const myCustomTool: ToolDefinition = {
+  name: 'my_custom_tool',
+  description: '工具的作用说明',
+  parameters: {
+    type: 'object',
+    properties: {
+      param1: { type: 'string', description: '参数说明' }
+    },
+    required: ['param1'],
+    additionalProperties: false,
+  },
+  isReadOnly: true,
+  execute: async ({ param1 }) => {
+    // 你的业务逻辑
+    return `执行结果: ${param1}`;
+  },
+};
+```
 
-### 可扩展的工具注册机制
+2. 在 `src/tools/index.ts` 中引入并加入 `allTools` 数组即可生效。
 
-工具定义包含名称、描述、参数 Schema、执行函数以及读写属性等元数据。注册表负责统一暴露工具，业务代码不需要直接拼装模型调用格式。
+---
 
-### 低门槛的本地演示
+## 🛠️ 技术栈
 
-Mock 模型实现了 AI SDK 所需的最小模型接口，并以延迟字符流模拟真实模型输出。即使没有外部模型服务，也能验证 CLI 和消息历史流程。
-
-## 当前边界
-
-- 工具默认基于当前工作目录执行，写文件和 shell 命令没有额外的权限确认层。
-- `glob`、`grep` 和工具结果都有数量或字符上限，适合小型项目和原型场景。
-- `start_preview` 是简单静态文件服务器，不负责 TypeScript 编译、热更新或 SPA fallback。
-- 当前 CLI 是单会话交互模式，不包含 Web UI、用户鉴权、并发会话和持久化会话存储。
-- 项目当前没有独立的自动化测试脚本，修改核心循环或工具时建议至少手动验证 CLI、文件编辑和前端构建流程。
-
-## 技术栈
-
-- TypeScript
-- Node.js
-- Vercel AI SDK(API适配层)
+- **语言环境**：TypeScript / Node.js
+- **Agent 框架与适配层**：[Vercel AI SDK (`ai`)](https://sdk.vercel.ai/)、`@ai-sdk/openai`
+- **开发与构建工具**：`tsx`、`tsc`、`pnpm workspace`
+- **示例应用技术栈**：React 19、Vite、Tailwind CSS、Lucide React
