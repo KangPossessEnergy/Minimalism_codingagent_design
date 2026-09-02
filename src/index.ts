@@ -15,7 +15,7 @@ const gemini = createOpenAI({
   name: process.env.NAME,
 });
 
-const model: any = apiKey ? gemini.chat(`{name}`) : createMockModel();
+const model: any = apiKey ? gemini.chat(`${process.env.NAME}`) : createMockModel();
 
 const registry = new ToolRegistry();
 registry.register(...allTools);
